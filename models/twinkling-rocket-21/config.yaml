@@ -1,0 +1,35 @@
+annotations_path: /home/tlaurent/Datasets/rs19_egopath/rs19_egopath.json
+backbone: efficientnet-b3
+batch_size: 8
+brightness: 0.5
+contrast: 0.5
+crop_margin_sides: 0.1
+crop_margin_top: 0.1
+decoder_channels:
+- 256
+- 128
+- 64
+- 32
+- 16
+epochs: 300
+hue: 0.2
+images_path: /home/tlaurent/Datasets/rs19_val/jpgs/rs19_val
+input_shape:
+- 3
+- 512
+- 512
+learning_rate: 0.0001
+method: segmentation
+optimizer: adam
+pretrained: true
+saturation: 0.5
+scheduler: one_cycle
+seed: 42
+std_dev_factor_sides: 0.3
+std_dev_factor_top: 0.1
+test_iterations: 10
+test_prop: 0.1
+train_prop: 0.8
+val_iterations: 5
+val_prop: 0.1
+workers: 8
