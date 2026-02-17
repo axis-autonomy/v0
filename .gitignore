@@ -17,3 +17,6 @@ runs/
 Thumbs.db
 .vscode/
 .idea/
+models/
+*.pt
+*.onnx
