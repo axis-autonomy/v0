@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rail Hazard Detection — Operator Display</title>
+  <!-- Socket.IO client -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+  <!-- React -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    /* ════════════════════════════════════════════════════════
+       THEME TOKENS
+    ════════════════════════════════════════════════════════ */
+    :root {
+      --bg:             #000000;
+      --surface:        #000000;
+      --surface-2:      #111111;
+      --surface-3:      #171717;
+      --border:         rgba(255,255,255,0.05);
+      --border-med:     rgba(255,255,255,0.08);
+      --border-strong:  rgba(255,255,255,0.14);
+      --text:           #e6e6e6;
+      --text-muted:     #9a9a9a;
+      --text-dim:       #444444;
+      --danger:         #df2e28;
+      --danger-dim:     rgba(223,46,40,0.18);
+      --warn:           #d07d18;
+      --warn-dim:       rgba(208,125,24,0.16);
+      --safe:           #24ad5e;
+      --safe-dim:       rgba(36,173,94,0.16);
+      --info:           #4488cc;
+      --info-dim:       rgba(68,136,204,0.14);
+      --gauge-green:    #00c070;
+      --mono:           'Courier New', Courier, monospace;
+      --ui:             'Segoe UI', system-ui, sans-serif;
+      --radius-sm:      4px;
+      --radius-md:      8px;
+      --radius-lg:      12px;
+      --shadow:         0 4px 18px rgba(0,0,0,0.7);
+      --shadow-sm:      0 2px 6px rgba(0,0,0,0.55);
+      --gap:            8px;
+      --log-collapsed:  42px;
+      --log-expanded:   196px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; height: 100%; background: #000000; font-family: var(--ui); color: var(--text); }
+    #root { width: 100%; height: 100%; }
+
+    .stage-shell {
+      width: 100%; height: 100%;
+      display: flex; align-items: center; justify-content: center;
+      background: #040710; overflow: hidden;
+    }
+    .stage {
+      width: min(100vw, calc(100vh * 1.6));
+      height: min(100vh, calc(100vw / 1.6));
+      background: var(--bg);
+      display: flex; flex-direction: column;
+      border-radius: var(--radius-md); overflow: hidden;
+      box-shadow: 0 0 80px rgba(0,0,0,0.88);
+    }
+
+    /* STATUS BAR */
+    .status-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 16px; height: 40px; min-height: 40px; flex-shrink: 0;
+      background: var(--bg); border-bottom: 1px solid var(--border-med);
+    }
+   .status-logo{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      height:40px;
+    }
+
+    .brand-logo{
+      height:40px;        
+      width:auto;
+      display:block;
+    }
+
+    .brand-text{
+      font-family: var(--mono);
+      font-size: 13px;      /* <-- text size */
+      font-weight: 800;
+      letter-spacing: 0.10em;
+      color: var(--text);
+      opacity: 0.95;
+    }
+
+    .status-right { display: flex; align-items: center; gap: 14px; }
+    .conn-icon { display: flex; align-items: center; transition: opacity 0.15s; }
+    .conn-icon.active   { color: var(--text); }
+    .conn-icon.inactive { color: var(--text-dim); opacity: 0.38; }
+    .status-time { font-family: var(--mono); font-size: 12.5px; font-weight: 600; color: var(--text); letter-spacing: 0.07em; }
+
+    /* CONNECTION BADGE */
+    .conn-badge {
+      font-family: var(--mono); font-size: 9px; font-weight: 700;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      padding: 2px 7px; border-radius: 3px;
+    }
+    .conn-badge.live { background: var(--safe-dim); color: var(--safe); }
+    .conn-badge.connecting { background: var(--warn-dim); color: var(--warn); animation: recPulse 1.2s step-start infinite; }
+    .conn-badge.disconnected { background: var(--danger-dim); color: var(--danger); }
+
+    /* MAIN CONTENT */
+    .content-area {
+      flex: 1; display: flex; gap: var(--gap);
+      padding: var(--gap); min-height: 0; overflow: hidden;
+    }
+    .primary-col { flex: 0 0 62%; min-width: 0; display: flex; flex-direction: column; }
+    .right-col   { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--gap); }
+
+    /* VIDEO PANELS */
+    .video-panel {
+      position: relative; border-radius: var(--radius-lg); overflow: hidden;
+      border: 1px solid var(--border-med); box-shadow: var(--shadow); background: #070910;
+    }
+    .primary-video  { flex: 1; min-height: 0; }
+    .secondary-video { flex: 0 0 36%; min-height: 0; }
+    .video-element  { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .video-label    { font-size: 10px; font-weight: 700; letter-spacing: 0.15em; color: var(--text-dim); text-transform: uppercase; }
+    .video-sublabel { font-size: 9px; letter-spacing: 0.07em; color: var(--text-dim); opacity: 0.45; }
+
+    /* placeholder shown while stream hasn't started */
+    .video-placeholder {
+      width: 100%; height: 100%;
+      background: repeating-linear-gradient(45deg, #080808 0px, #080808 10px, #101010 10px, #101010 20px);
+      display: flex; flex-direction: column; align-items: flex-start;
+      justify-content: flex-end; padding: 10px 12px; gap: 3px;
+    }
+
+    /* OVERLAYS */
+    .overlay-layer { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+    .det-marker-wrap {
+      position: absolute; bottom: 100%; left: 50%;
+      transform: translateX(-50%); margin-bottom: -4px;
+    }
+    .bbox-rect {
+      width: 100%; height: 100%;
+      border: 2px solid var(--danger); border-radius: 2px;
+      box-shadow: 0 0 8px rgba(223,46,40,0.38);
+    }
+    .secondary-markers { position: absolute; inset: 0; }
+    .marker-cluster {
+      position: absolute; top: 10%; left: 50%;
+      transform: translateX(-50%);
+      display: flex; align-items: flex-end; z-index: 10;
+    }
+
+    /* ALERT CARD */
+    .alert-card {
+      display: flex; align-items: center; gap: 14px;
+      padding: 12px 14px; flex-shrink: 0;
+      background: var(--surface-2); border: 1px solid var(--border-med);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,0.03);
+    }
+    .alert-icon-circle {
+      width: 52px; height: 52px; border-radius: 50%; flex-shrink: 0;
+      background: var(--danger);
+      display: flex; align-items: center; justify-content: center;
+      animation: alertPulse 1.6s ease-in-out infinite;
+    }
+    .alert-text { display: flex; flex-direction: column; gap: 1px; }
+    .alert-label { font-size: 12px; color: var(--text-muted); font-weight: 500; letter-spacing: 0.02em; }
+    .alert-distance { display: flex; align-items: baseline; gap: 4px; line-height: 1; }
+    .alert-number { font-size: clamp(30px, 3.6vw, 50px); font-weight: 800; color: var(--danger); line-height: 1; letter-spacing: -0.02em; }
+    .alert-unit   { font-size: clamp(14px, 1.6vw, 20px); font-weight: 600; color: var(--text-muted); margin-bottom: 3px; }
+    .alert-class  { font-size: 11px; color: var(--text-dim); letter-spacing: 0.05em; text-transform: uppercase; margin-top: 2px; }
+
+    @keyframes alertPulse {
+      0%,100% { box-shadow: 0 0 12px rgba(223,46,40,0.4); }
+      50%      { box-shadow: 0 0 24px rgba(223,46,40,0.78); }
+    }
+
+    /* METRICS */
+    .metrics-row { display: flex; gap: var(--gap); flex-shrink: 0; }
+    .metric-tile, .gauge-tile {
+      flex: 1; min-height: 68px;
+      background: var(--surface-2); border: 1px solid var(--border-med);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,0.025);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 10px 8px;
+    }
+    .metric-label { font-size: 10px; color: var(--text-muted); letter-spacing: 0.06em; font-weight: 500; margin-bottom: 5px; }
+    .metric-value { font-size: clamp(20px, 2.5vw, 34px); font-weight: 700; color: var(--text); font-family: var(--mono); line-height: 1; }
+    .gauge-wrap   { position: relative; display: flex; align-items: center; justify-content: center; }
+    .gauge-wrap svg { display: block; width: clamp(60px, 7vw, 108px); height: clamp(60px, 7vw, 108px); }
+    .gauge-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-top: 8px; }
+    .gauge-value  { font-size: clamp(16px, 2vw, 30px); font-weight: 700; color: var(--text); line-height: 1; letter-spacing: -0.02em; }
+    .gauge-unit   { font-size: clamp(7px, 0.8vw, 10px); color: var(--text-muted); letter-spacing: 0.04em; margin-top: 1px; }
+
+    /* LOG PANEL */
+    .log-panel {
+      flex-shrink: 0; background: var(--surface); border-top: 1px solid var(--border-med);
+      display: flex; flex-direction: column; overflow: hidden;
+      transition: height 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .log-panel.collapsed { height: var(--log-collapsed); }
+    .log-panel.expanded  { height: var(--log-expanded); }
+    .log-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 12px; height: var(--log-collapsed); min-height: var(--log-collapsed); flex-shrink: 0;
+      cursor: pointer; user-select: none; border-bottom: 1px solid var(--border);
+      transition: background 0.12s;
+    }
+    .log-header:hover { background: rgba(255,255,255,0.022); }
+    .log-header-left { display: flex; align-items: center; gap: 16px; min-width: 0; }
+    .log-section-label { font-size: 9px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-dim); flex-shrink: 0; }
+    .log-preview { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; }
+    .log-preview-badge { font-size: 8.5px; font-weight: 700; letter-spacing: 0.1em; padding: 2px 5px; border-radius: 2px; text-transform: uppercase; flex-shrink: 0; }
+    .log-preview-msg   { font-size: 10.5px; color: var(--text-muted); font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .log-preview-ts    { font-size: 10px; color: var(--text-dim); font-family: var(--mono); flex-shrink: 0; }
+    .log-chevron { color: var(--text-dim); transition: transform 0.26s cubic-bezier(0.4,0,0.2,1); flex-shrink: 0; }
+    .log-chevron.open { transform: rotate(180deg); }
+
+    /* SYSSTAT STRIP */
+    .sysstat-strip {
+      display: flex; align-items: center; padding: 0 12px;
+      height: 34px; min-height: 34px; flex-shrink: 0;
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto; scrollbar-width: none; gap: 0;
+    }
+    .sysstat-strip::-webkit-scrollbar { display: none; }
+    .sysstat-item {
+      display: flex; align-items: center; gap: 5px;
+      padding-right: 14px; margin-right: 14px;
+      border-right: 1px solid var(--border);
+      white-space: nowrap; flex-shrink: 0;
+    }
+    .sysstat-item:last-child { border-right: none; padding-right: 0; margin-right: 0; }
+    .ss-key { font-size: 8.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dim); }
+    .ss-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+    .ss-val { font-size: 10.5px; font-weight: 600; font-family: var(--mono); letter-spacing: 0.04em; }
+    .s-ok      { color: var(--safe); }
+    .s-warn    { color: var(--warn); }
+    .s-err     { color: var(--danger); }
+    .s-neutral { color: var(--text-muted); }
+    .d-ok   { background: var(--safe); }
+    .d-warn { background: var(--warn); }
+    .d-err  { background: var(--danger); }
+    .d-off  { background: var(--text-dim); }
+    @keyframes recPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.2; } }
+    .rec-blink { animation: recPulse 1.2s step-start infinite; }
+
+    /* EVENT LOG */
+    .log-scroll {
+      flex: 1; overflow-y: auto; overflow-x: hidden;
+      scrollbar-width: thin; scrollbar-color: var(--border-med) transparent;
+    }
+    .log-scroll::-webkit-scrollbar { width: 3px; }
+    .log-scroll::-webkit-scrollbar-thumb { background: var(--border-med); border-radius: 2px; }
+    .log-row {
+      display: grid; grid-template-columns: 86px 88px 1fr;
+      align-items: center; padding: 0 12px;
+      height: 24px; min-height: 24px;
+      border-bottom: 1px solid var(--border); gap: 0;
+    }
+    .log-row:last-child { border-bottom: none; }
+    .log-row:hover { background: rgba(255,255,255,0.018); }
+    .log-ts   { font-family: var(--mono); font-size: 10.5px; color: var(--text-dim); letter-spacing: 0.02em; }
+    .log-type { font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+    .log-msg  { font-family: var(--mono); font-size: 10.5px; color: var(--text-muted); padding-left: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tc-critical { color: var(--danger); }
+    .tc-warning  { color: var(--warn); }
+    .tc-info     { color: var(--info); }
+    .tc-system   { color: var(--text-dim); }
+    .tc-clear    { color: var(--safe); }
+    .bc-critical { background: var(--danger-dim); color: var(--danger); }
+    .bc-warning  { background: var(--warn-dim); color: var(--warn); }
+    .bc-info     { background: var(--info-dim); color: var(--info); }
+    .bc-system   { background: rgba(255,255,255,0.05); color: var(--text-dim); }
+    .bc-clear    { background: var(--safe-dim); color: var(--safe); }
+
+    @media (max-width: 1280px) {
+      .status-time { font-size: 11px; }
+      .alert-card  { padding: 9px 11px; gap: 10px; }
+      :root { --log-expanded: 178px; }
+    }
+    @media (max-width: 1024px) {
+      .content-area, .right-col, .metrics-row { gap: 6px; }
+      .content-area { padding: 6px; }
+      :root { --log-expanded: 160px; }
+    }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+const ICONS = {
+  cow:    "/static/assets/icons/cow.png",
+  person: "/static/assets/icons/person.png",
+  deer:   "/static/assets/icons/deer.png",
+  car:    "/static/assets/icons/car.png",
+  truck:  "/static/assets/icons/truck.png",
+  hazard: "/static/assets/icons/hazard.png",
+};
+
+function iconForType(type) {
+  const key = String(type || "").toLowerCase().trim();
+  return ICONS[key] || ICONS.hazard;
+}
+
+const { useState, useEffect, useRef, useMemo, useCallback } = React;
+
+/* ── Fallback state shown before first WebSocket message ─────────────────── */
+const INITIAL_STATE = {
+  timestamp: "--:--:--.---",
+  connectivity: { wifi: false, cellular: false, gps: false },
+  speedKmh: 0,
+  impactTimeSec: 0,
+  hazards: [],
+  systemStatus: {
+    camera: "OK", detection: "OK", segmentation: "OK",
+    gps: "Searching", fps: 0, cpuTempC: 0, recording: false,
+  },
+  events: [],
+};
+
+/* ── Severity / type maps ─────────────────────────────────────────────────── */
+const TYPE_COLOR = {
+  CRITICAL: "tc-critical", WARNING: "tc-warning", INFO: "tc-info",
+  SYSTEM: "tc-system", CLEAR: "tc-clear", CONFIRMATION: "tc-info", DETECTION: "tc-critical",
+};
+const SEV_BADGE = {
+  CRITICAL: "bc-critical", WARNING: "bc-warning", INFO: "bc-info",
+  SYSTEM: "bc-system", CLEAR: "bc-clear",
+};
+
+/* ════════════════════════════════════════════════════════════
+   ALERT MODE — derived from corridor hazards
+════════════════════════════════════════════════════════════ */
+function deriveMode(hazards, speedKmh) {
+  const inCorridor = hazards.filter(h => h.inCorridor);
+  if (!inCorridor.length) return "SAFE";
+  const closestM = Math.min(...inCorridor.map(h => h.distanceM));
+  return (closestM < 500 && speedKmh >= 0) ? "ALERT" : "SAFE";
+}
+
+/* ════════════════════════════════════════════════════════════
+   HAZARD ICON
+════════════════════════════════════════════════════════════ */
+function HazardTypeIcon({ type, size = 28, style }) {
+  const src = iconForType(type);
+  return (
+    <img
+      src={src}
+      alt={type || "hazard"}
+      width={size}
+      height={size}
+      style={{
+        display: "block",
+        objectFit: "contain",
+        filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.65))",
+        ...style
+      }}
+    />
+  );
+}
+
+
+/* ════════════════════════════════════════════════════════════
+   TRACK CORRIDOR OVERLAY (SVG polygon on top of video)
+════════════════════════════════════════════════════════════ */
+function TrackCorridorOverlay({ mode }) {
+  return null;
+}
+
+/* ════════════════════════════════════════════════════════════
+   DETECTION OVERLAY — uses normalised bbox coords from server
+════════════════════════════════════════════════════════════ */
+function DetectionOverlay({ hazards, compact = false }) {
+  return (
+    <div className="overlay-layer" style={{ position:"absolute", inset:0, pointerEvents:"none" }}>
+      {hazards.map((h, idx) => (
+        <div key={h.id} style={{
+          position: "absolute",
+          left:   `${h.bbox.x * 100}%`,
+          top:    `${h.bbox.y * 100}%`,
+          width:  `${h.bbox.w * 100}%`,
+          height: `${h.bbox.h * 100}%`,
+        }}>
+          {!compact && idx === 0 && (
+            <div className="det-marker-wrap">
+              <div style={{ display:"flex", alignItems:"flex-end" }}>
+                <HazardMarkerIcon size={32}/>
+                {hazards.length > 1 && <HazardMarkerIcon size={32} style={{ marginLeft:"-10px" }}/>}
+              </div>
+            </div>
+          )}
+          <div className="bbox-rect"/>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+
+/* ════════════════════════════════════════════════════════════
+   TOP STATUS BAR
+════════════════════════════════════════════════════════════ */
+function TopStatusBar({ timestamp, connectivity, connStatus }) {
+  const badgeLabel = connStatus === "live" ? "LIVE" : connStatus === "connecting" ? "CONNECTING" : "OFFLINE";
+  return (
+    <div className="status-bar">
+      <div className="status-logo">
+        <img className="brand-logo" src="/static/assets/icons/logo.png" />
+        <span className="brand-text">AXIS ROBOTICS</span>
+      </div>
+
+
+      <div className="status-right">
+        <span className={`conn-badge ${connStatus}`}>{badgeLabel}</span>
+        <span className={`conn-icon ${connectivity.wifi     ? "active":"inactive"}`} title="WiFi">
+          <svg width="17" height="13" viewBox="0 0 24 18" fill="none">
+            <path d="M12 16a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm0-4c1.7 0 3.2.68 4.3 1.8l-1.4 1.4A4.5 4.5 0 0 0 12 14a4.5 4.5 0 0 0-2.9 1.2l-1.4-1.4A6.4 6.4 0 0 1 12 12zm0-4c2.6 0 5 1.05 6.7 2.75l-1.4 1.4A7.5 7.5 0 0 0 12 10a7.5 7.5 0 0 0-5.3 2.15l-1.4-1.4A9.5 9.5 0 0 1 12 8zm0-4c3.55 0 6.8 1.4 9.2 3.65l-1.4 1.4A11.5 11.5 0 0 0 12 6a11.5 11.5 0 0 0-7.8 2.95l-1.4-1.4A13.5 13.5 0 0 1 12 4z" fill="currentColor"/>
+          </svg>
+        </span>
+        <span className={`conn-icon ${connectivity.cellular ? "active":"inactive"}`} title="Cellular">
+          <svg width="15" height="13" viewBox="0 0 20 18" fill="none">
+            <rect x="1"  y="12" width="3" height="6" rx="1" fill="currentColor"/>
+            <rect x="5"  y="8"  width="3" height="10" rx="1" fill="currentColor"/>
+            <rect x="9"  y="4"  width="3" height="14" rx="1" fill="currentColor"/>
+            <rect x="13" y="0"  width="3" height="18" rx="1" fill="currentColor"/>
+          </svg>
+        </span>
+        <span className={`conn-icon ${connectivity.gps     ? "active":"inactive"}`} title="GPS">
+          <svg width="12" height="13" viewBox="0 0 14 18" fill="none">
+            <path d="M7 0a6 6 0 0 0-6 6c0 4.5 6 12 6 12s6-7.5 6-12A6 6 0 0 0 7 0zm0 8a2 2 0 1 1 0-4 2 2 0 0 1 0 4z" fill="currentColor"/>
+          </svg>
+        </span>
+        <span className="status-time">{timestamp}</span>
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════
+   PRIMARY VIDEO PANEL — MJPEG stream from /video_feed
+════════════════════════════════════════════════════════════ */
+function PrimaryVideoPanel({ mode, hazards, streamReady }) {
+  const inCorridor = hazards.filter(h => h.inCorridor);
+  return (
+    <div className="video-panel primary-video">
+      {streamReady ? (
+        <img
+          src="/stream/primary"
+          className="video-element"
+          alt="Primary forward-facing camera feed"
+          style={{ display:"block", width:"100%", height:"100%", objectFit:"cover" }}
+        />
+      ) : (
+        <div className="video-placeholder">
+          <span className="video-label">Primary Feed</span>
+          <span className="video-sublabel">Waiting for stream…</span>
+        </div>
+      )}
+      // <TrackCorridorOverlay mode={mode}/>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════
+   SECONDARY VIDEO PANEL
+   Mirrors primary stream; swap src for a dedicated secondary feed
+   if you add a second camera route (/video_feed2).
+════════════════════════════════════════════════════════════ */
+function SecondaryVideoPanel({ mode, hazards, streamReady }) {
+  const inCorridor = hazards.filter(h => h.inCorridor);
+  return (
+    <div className="video-panel secondary-video">
+      {streamReady ? (
+       <img
+        src="/stream/primary"
+        className="video-element"
+        alt="Secondary / zoom camera feed"
+        style={{ display:"block", width:"100%", height:"100%", objectFit:"cover" }}
+      />
+      ) : (
+        <div className="video-placeholder" style={{ minHeight:"60px" }}>
+          <span className="video-label">Zoom / Thermal</span>
+          <span className="video-sublabel">Waiting for stream…</span>
+        </div>
+      )}
+     
+      
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════
+   ALERT CARD
+════════════════════════════════════════════════════════════ */
+function AlertCard({ hazard }) {
+  return (
+    <div className="alert-card">
+      <div className="alert-icon-circle">
+       <HazardTypeIcon type={hazard.type} size={26} />
+      </div>
+      <div className="alert-text">
+        <span className="alert-label">Hazard Nearby</span>
+        <div className="alert-distance">
+          <span className="alert-number">{hazard.distanceM}</span>
+          <span className="alert-unit">m</span>
+        </div>
+        <span className="alert-class">{hazard.type}</span>
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════
+   METRIC TILE + SPEED GAUGE
+════════════════════════════════════════════════════════════ */
+function MetricTile({ label, value }) {
+  return (
+    <div className="metric-tile">
+      <span className="metric-label">{label}</span>
+      <span className="metric-value">{value}</span>
+    </div>
+  );
+}
+
+function SpeedGaugeTile({ speedValue, unit, maxSpeed = 200 }) {
+  const SIZE = 108, CX = 54, CY = 54, R = 38, SW = 5;
+  const START = 215, SWEEP = 110;
+  const active = Math.min(speedValue / maxSpeed, 1) * SWEEP;
+  const toRad = d => d * Math.PI / 180;
+  const arc = (s, sw) => {
+    const e = s + sw;
+    const sx = CX + R * Math.cos(toRad(s)), sy = CY + R * Math.sin(toRad(s));
+    const ex = CX + R * Math.cos(toRad(e)), ey = CY + R * Math.sin(toRad(e));
+    return `M ${sx.toFixed(2)} ${sy.toFixed(2)} A ${R} ${R} 0 ${sw>180?1:0} 1 ${ex.toFixed(2)} ${ey.toFixed(2)}`;
+  };
+  return (
+    <div className="gauge-tile">
+      <div className="gauge-wrap">
+        <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`}>
+          <path d={arc(START,SWEEP)} stroke="rgba(255,255,255,0.08)" strokeWidth={SW} fill="none" strokeLinecap="round"/>
+          {active > 0 && <path d={arc(START,active)} stroke="var(--gauge-green)" strokeWidth={SW} fill="none" strokeLinecap="round"/>}
+        </svg>
+        <div className="gauge-center">
+          <span className="gauge-value">{speedValue}</span>
+          <span className="gauge-unit">{unit}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════
+   SYSTEM STATUS STRIP
+════════════════════════════════════════════════════════════ */
+function SystemStatusStrip({ status }) {
+  const classify = (key, val) => {
+    if (["camera","detection","segmentation"].includes(key))
+      return val === "OK" ? "ok" : val === "Degraded" ? "warn" : "err";
+    if (key === "gps") return val === "Locked" ? "ok" : val === "Searching" ? "warn" : "err";
+    if (key === "fps") return val >= 20 ? "neutral" : "warn";
+    if (key === "cpuTempC") return val < 75 ? "neutral" : val < 90 ? "warn" : "err";
+    if (key === "recording") return val ? "ok" : "off";
+    return "neutral";
+  };
+  const dotClass = s => ({ok:"d-ok",warn:"d-warn",err:"d-err",off:"d-off",neutral:"d-off"}[s]||"d-off");
+  const valClass = s => ({ok:"s-ok",warn:"s-warn",err:"s-err",off:"s-neutral",neutral:"s-neutral"}[s]||"s-neutral");
+
+  const items = [
+    { key:"camera",       label:"CAM",    val:status.camera },
+    { key:"detection",    label:"DETECT", val:status.detection },
+    { key:"segmentation", label:"SEG",    val:status.segmentation },
+    { key:"gps",          label:"GPS",    val:status.gps },
+    { key:"fps",          label:"FPS",    val:`${status.fps} fps` },
+    { key:"cpuTempC",     label:"CPU",    val:`${status.cpuTempC}°C` },
+    { key:"recording",    label:"REC",    val:status.recording ? "ON" : "OFF", isRec:true },
+  ];
+
+  return (
+    <div className="sysstat-strip">
+      {items.map(it => {
+        const state = classify(it.key, status[it.key] ?? it.val);
+        return (
+          <div key={it.key} className="sysstat-item">
+            <span className="ss-key">{it.label}</span>
+            <span className={`ss-dot ${dotClass(state)} ${it.isRec && status.recording ? "rec-blink":""}`}/>
+            <span className={`ss-val ${valClass(state)}`}>{it.val}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════
+   EVENT LOG ROW
+════════════════════════════════════════════════════════════ */
+function EventLogRow({ event }) {
+  return (
+    <div className="log-row">
+      <span className="log-ts">{event.timestamp}</span>
+      <span className={`log-type ${TYPE_COLOR[event.type] || "tc-system"}`}>{event.type}</span>
+      <span className="log-msg">{event.message}</span>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════
+   STATUS & EVENT LOG PANEL
+════════════════════════════════════════════════════════════ */
+function StatusEventLogPanel({ events, systemStatus }) {
+  const [expanded, setExpanded] = useState(false);
+  const scrollRef = useRef(null);
+  useEffect(() => {
+    if (expanded && scrollRef.current) scrollRef.current.scrollTop = 0;
+  }, [expanded, events.length]);
+
+  const latest    = events[0];
+  const badgeClass = latest ? (SEV_BADGE[latest.severity] || "bc-system") : "bc-system";
+
+  return (
+    <div className={`log-panel ${expanded ? "expanded" : "collapsed"}`}>
+      <div className="log-header" onClick={() => setExpanded(e => !e)}
+        role="button" tabIndex={0}
+        onKeyDown={e => (e.key==="Enter"||e.key===" ") && setExpanded(v=>!v)}
+        aria-expanded={expanded} aria-label="Toggle status and event log">
+        <div className="log-header-left">
+          <span className="log-section-label">Status / Event Log</span>
+          {!expanded && latest && (
+            <div className="log-preview">
+              <span className={`log-preview-badge ${badgeClass}`}>{latest.type}</span>
+              <span className="log-preview-msg">{latest.message}</span>
+              <span className="log-preview-ts">{latest.timestamp}</span>
+            </div>
+          )}
+        </div>
+        <svg className={`log-chevron ${expanded ? "open" : ""}`}
+          width="13" height="7" viewBox="0 0 13 7" fill="none" aria-hidden="true">
+          <path d="M1 1l5.5 5L12 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </div>
+      {expanded && (
+        <>
+          <SystemStatusStrip status={systemStatus}/>
+          <div className="log-scroll" ref={scrollRef}>
+            {events.map(ev => <EventLogRow key={ev.id} event={ev}/>)}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════
+   ROOT APP — WebSocket integration
+════════════════════════════════════════════════════════════ */
+function App() {
+  const [data, setData]           = useState(INITIAL_STATE);
+  const [connStatus, setConnStatus] = useState("connecting");
+  const [streamReady, setStreamReady] = useState(false);
+  const socketRef = useRef(null);
+
+  /* ── WebSocket connection ─────────────────────────────── */
+  useEffect(() => {
+    const socket = io({ transports: ["websocket", "polling"] });
+    socketRef.current = socket;
+
+    socket.on("connect", () => {
+      setConnStatus("live");
+      console.log("[Socket] connected:", socket.id);
+    });
+
+    socket.on("disconnect", () => {
+      setConnStatus("disconnected");
+      console.warn("[Socket] disconnected");
+    });
+
+    socket.on("connect_error", () => {
+      setConnStatus("disconnected");
+    });
+
+    /* Main state update from server */
+    socket.on("state", (incoming) => {
+      setData(incoming);
+      setStreamReady(true);
+    });
+
+    /* Fetch initial state snapshot in case we missed the first emit */
+    fetch("/api/state")
+      .then(r => r.json())
+      .then(s => { if (s && s.hazards) { setData(s); setStreamReady(true); } })
+      .catch(() => {});
+
+    return () => socket.disconnect();
+  }, []);
+
+  /* ── Live clock (overridden when server sends timestamp) ─ */
+  const [localTs, setLocalTs] = useState("");
+  useEffect(() => {
+    const id = setInterval(() => {
+      const n = new Date();
+      setLocalTs(n.toTimeString().slice(0,8) + "." + String(n.getMilliseconds()).padStart(3,"0"));
+    }, 100);
+    return () => clearInterval(id);
+  }, []);
+
+  const displayTs = data.timestamp !== INITIAL_STATE.timestamp ? data.timestamp : localTs;
+
+  /* ── Derived UI state ──────────────────────────────────── */
+  const mode = useMemo(() => deriveMode(data.hazards, data.speedKmh), [data.hazards, data.speedKmh]);
+  const activeHazard = useMemo(() => {
+    if (mode !== "ALERT") return null;
+    const inC = data.hazards.filter(h => h.inCorridor);
+    if (!inC.length) return null;
+    return inC.reduce((best, h) => (h.distanceM < best.distanceM ? h : best), inC[0]);
+  }, [mode, data.hazards]);
+
+  const formatTime = sec => {
+    const m = String(Math.floor(sec/60)).padStart(2,"0");
+    const s = String(sec%60).padStart(2,"0");
+    return `${m}:${s}`;
+  };
+
+  return (
+    <div className="stage-shell">
+      <div className="stage">
+        <TopStatusBar timestamp={displayTs} connectivity={data.connectivity} connStatus={connStatus}/>
+        <div className="content-area">
+          <div className="primary-col">
+            <PrimaryVideoPanel mode={mode} hazards={data.hazards} streamReady={streamReady}/>
+          </div>
+          <div className="right-col">
+            <SecondaryVideoPanel mode={mode} hazards={data.hazards} streamReady={streamReady}/>
+            {mode === "ALERT" && activeHazard && <AlertCard hazard={activeHazard}/>}
+            <div className="metrics-row">
+              <MetricTile label="Impact Time:" value={formatTime(data.impactTimeSec)}/>
+              <SpeedGaugeTile speedValue={data.speedKmh} unit="km/h"/>
+            </div>
+            <StatusEventLogPanel events={data.events} systemStatus={data.systemStatus}/>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>

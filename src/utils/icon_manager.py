@@ -8,6 +8,13 @@ import numpy as np
 class IconManager:
     def __init__(self, icons_path="assets/icons", icon_size=(50, 50)):
         """Load and manage detection icons"""
+        if icons_path is None:
+            
+            here = os.path.dirname(os.path.abspath(__file__))
+            icons_path = os.path.join(here, "..", "..", "static", "assets", "icons")
+            icons_path = os.path.abspath(icons_path)
+            
+        self.icons_path = icons_path
         self.icons = {}
         self.icon_size = icon_size
         
