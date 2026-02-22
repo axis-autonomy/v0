@@ -263,6 +263,47 @@ def to_ui_state(hazard_events, frame_w, frame_h, fps_est):
 # -----------------------------
 # INFERENCE THREAD
 # -----------------------------
+# def inference_loop():
+#     global latest_jpeg, latest_state
+
+#     pipeline = HazardPipeline()
+#     cap = cv2.VideoCapture(VIDEO_PATH)
+
+#     if not cap.isOpened():
+#         raise RuntimeError(f"Could not open video source: {VIDEO_PATH}")
+
+#     last_t = time.time()
+#     fps_est = 0.0
+
+#     while True:
+#         ret, frame = cap.read()
+#         if not ret:
+#             cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+#             continue
+
+#         annotated, hazard_events = pipeline.process_frame(frame)
+
+#         now = time.time()
+#         dt = now - last_t
+#         last_t = now
+#         if dt > 0:
+#             print(f"FPS: {fps_est:.1f} | Frame time: {dt*1000:.1f}ms")
+#             fps_est = 0.9 * fps_est + 0.1 * (1.0 / dt) if fps_est else (1.0 / dt)
+
+#         ok, buf = cv2.imencode(".jpg", annotated, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+#         if not ok:
+#             continue
+
+#         h, w = frame.shape[:2]
+#         ui_state = to_ui_state(hazard_events, w, h, fps_est)
+
+#         with lock:
+#             latest_jpeg = buf.tobytes()
+#             latest_state = ui_state
+
+#         # Push live state to all connected WebSocket clients
+#         socketio.emit("state", ui_state)
+
 def inference_loop():
     global latest_jpeg, latest_state
 
