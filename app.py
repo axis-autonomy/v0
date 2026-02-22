@@ -27,7 +27,7 @@ from utils.icon_manager import IconManager
 # CONFIG
 # -----------------------------
 VIDEO_PATH = "./data/videos/raw/cow.mp4"
-YOLO_MODEL_PATH = "models/yolo26n_rail_final.onnx"
+YOLO_MODEL_PATH = "models/yolo26n_rail_final.mlpackage"
 TEPNET_MODEL_PATH = "models/twinkling-rocket-21"
 
 CONF_THRESHOLD = 0.15
@@ -79,7 +79,8 @@ class HazardPipeline:
         ICON_DIR = os.path.join(CURRENT_DIR, "static", "assets", "icons")
         self.icon_mgr = IconManager(icons_path=ICON_DIR)
 
-        # self.icon_mgr = IconManager()
+        self.ego_mask_cache = None
+        self.frame_count = 0
 
         self.logo = None
         if os.path.exists(logo_path):
@@ -99,23 +100,37 @@ class HazardPipeline:
         orig_h, orig_w = frame.shape[:2]
         combined = frame.copy()
         hazard_events = []
+        self.frame_count += 1
 
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        pil_img = Image.fromarray(rgb)
-        seg_result = self.tepnet.detect(pil_img)
+        # TEPNet every 10 frames
+        if self.frame_count % 10 == 0 or self.ego_mask_cache is None:
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            rgb_small = cv2.resize(rgb, (512, 512))
+            pil_img = Image.fromarray(rgb_small)
+            seg_result = self.tepnet.detect(pil_img)
+            if isinstance(seg_result, Image.Image):
+                ego_mask = np.array(seg_result)
+                self.ego_mask_cache = cv2.resize(ego_mask, (orig_w, orig_h),
+                                                interpolation=cv2.INTER_NEAREST)
 
-        ego_mask_resized = None
-        if isinstance(seg_result, Image.Image):
-            ego_mask = np.array(seg_result)
-            if ego_mask.shape != (orig_h, orig_w):
-                ego_mask_resized = cv2.resize(ego_mask, (orig_w, orig_h), interpolation=cv2.INTER_NEAREST)
-            else:
-                ego_mask_resized = ego_mask
+        ego_mask_resized = self.ego_mask_cache
+
+        if ego_mask_resized is not None:
+            combined = frame.copy()
+            combined[ego_mask_resized > 0] = (
+                combined[ego_mask_resized > 0] * 0.7 +
+                np.array([0, 255, 0]) * 0.3
+            ).astype(np.uint8)
 
             # DELETE these 4 lines:
-            overlay = frame.copy()
-            overlay[ego_mask_resized > 0] = [0, 255, 0]
-            combined = cv2.addWeighted(frame, 0.7, overlay, 0.3, 0)
+            # overlay = frame.copy()
+            # overlay[ego_mask_resized > 0] = [0, 255, 0]
+            # combined = cv2.addWeighted(frame, 0.7, overlay, 0.3, 0)
+            combined = frame.copy()
+            combined[ego_mask_resized > 0] = (
+                combined[ego_mask_resized > 0] * 0.7 + 
+                np.array([0, 255, 0]) * 0.3
+            ).astype(np.uint8)
 
         results = self.yolo(frame, imgsz=1536, conf=CONF_THRESHOLD, verbose=False)
 
@@ -159,20 +174,20 @@ class HazardPipeline:
                                   (int(x1), int(y1)), (int(x2), int(y2)),
                                   (255, 255, 0), 1)
 
-        if self.logo is not None:
-            l_h, l_w = self.logo.shape[:2]
-            margin = 15
-            y1_l, y2_l = margin, margin + l_h
-            x1_l, x2_l = orig_w - l_w - margin, orig_w - margin
-            if y2_l <= orig_h and x2_l <= orig_w:
-                roi = combined[y1_l:y2_l, x1_l:x2_l]
-                if self.logo.shape[2] == 4:
-                    alpha = self.logo[:, :, 3] / 255.0
-                    for c in range(3):
-                        roi[:, :, c] = (alpha * self.logo[:, :, c]
-                                        + (1 - alpha) * roi[:, :, c])
-                else:
-                    combined[y1_l:y2_l, x1_l:x2_l] = self.logo[:, :, :3]
+        # if self.logo is not None:
+        #     l_h, l_w = self.logo.shape[:2]
+        #     margin = 15
+        #     y1_l, y2_l = margin, margin + l_h
+        #     x1_l, x2_l = orig_w - l_w - margin, orig_w - margin
+        #     if y2_l <= orig_h and x2_l <= orig_w:
+        #         roi = combined[y1_l:y2_l, x1_l:x2_l]
+        #         if self.logo.shape[2] == 4:
+        #             alpha = self.logo[:, :, 3] / 255.0
+        #             for c in range(3):
+        #                 roi[:, :, c] = (alpha * self.logo[:, :, c]
+        #                                 + (1 - alpha) * roi[:, :, c])
+        #         else:
+        #             combined[y1_l:y2_l, x1_l:x2_l] = self.logo[:, :, :3]
 
         return combined, hazard_events
 
@@ -272,6 +287,7 @@ def inference_loop():
         dt = now - last_t
         last_t = now
         if dt > 0:
+            print(f"FPS: {fps_est:.1f} | Frame time: {dt*1000:.1f}ms")
             fps_est = 0.9 * fps_est + 0.1 * (1.0 / dt) if fps_est else (1.0 / dt)
 
         ok, buf = cv2.imencode(".jpg", annotated, [int(cv2.IMWRITE_JPEG_QUALITY), 80])

@@ -25,7 +25,7 @@ from utils.icon_manager import IconManager
 VIDEO_PATH = "./data/videos/raw/cow.mp4"
 OUTPUT_PATH = "./data/videos/hazard_output.mp4"
 
-YOLO_MODEL_PATH = "models/yolo26n_rail_final.onnx"
+YOLO_MODEL_PATH = "models/yolo26n_rail_final.mlpackage"
 TEPNET_MODEL_PATH = "models/twinkling-rocket-21"
 
 CONF_THRESHOLD = 0.15
@@ -248,6 +248,8 @@ def run():
         print("Could not open video.")
         return
 
+    print(f"Resolution: {cap.get(cv2.CAP_PROP_FRAME_WIDTH)}x{cap.get(cv2.CAP_PROP_FRAME_HEIGHT)}")
+    
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     fps = int(cap.get(cv2.CAP_PROP_FPS)) or 30
     w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))

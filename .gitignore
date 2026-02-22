@@ -20,3 +20,4 @@ Thumbs.db
 models/
 *.pt
 *.onnx
+*.mlpackage
