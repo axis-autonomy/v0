@@ -102,23 +102,7 @@ class TEPNetRailDemo:
                 print(f"Error drawing ego-path: {e}")
 
         # ---- LOGO ----
-        if self.logo is not None:
-            l_h, l_w = self.logo.shape[:2]
-            margin = 15
-            y1, y2 = margin, margin + l_h
-            x1, x2 = orig_w - l_w - margin, orig_w - margin
-
-            if y2 <= orig_h and x2 <= orig_w:
-                roi = combined[y1:y2, x1:x2]
-                if self.logo.shape[2] == 4:
-                    alpha = self.logo[:, :, 3] / 255.0
-                    for c in range(3):
-                        roi[:, :, c] = (
-                            alpha * self.logo[:, :, c]
-                            + (1 - alpha) * roi[:, :, c]
-                        )
-                else:
-                    combined[y1:y2, x1:x2] = self.logo[:, :, :3]
+        
 
         return combined
 

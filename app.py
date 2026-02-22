@@ -267,19 +267,21 @@ def inference_loop():
     global latest_jpeg, latest_state
 
     pipeline = HazardPipeline()
-    cap = cv2.VideoCapture(VIDEO_PATH)
 
-    if not cap.isOpened():
-        raise RuntimeError(f"Could not open video source: {VIDEO_PATH}")
+    from picamera2 import Picamera2
+    picam2 = Picamera2()
+    picam2.configure(picam2.create_video_configuration(
+        main={"size": (1280, 720), "format": "RGB888"}
+    ))
+    picam2.start()
+    time.sleep(1)
 
     last_t = time.time()
     fps_est = 0.0
 
     while True:
-        ret, frame = cap.read()
-        if not ret:
-            cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-            continue
+        frame = picam2.capture_array()
+        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
 
         annotated, hazard_events = pipeline.process_frame(frame)
 
@@ -301,7 +303,6 @@ def inference_loop():
             latest_jpeg = buf.tobytes()
             latest_state = ui_state
 
-        # Push live state to all connected WebSocket clients
         socketio.emit("state", ui_state)
 
 
