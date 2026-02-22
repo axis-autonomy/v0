@@ -27,7 +27,7 @@ from utils.icon_manager import IconManager
 # CONFIG
 # -----------------------------
 VIDEO_PATH = "./data/videos/raw/cow.mp4"
-YOLO_MODEL_PATH = "models/yolo26n_rail_final.mlpackage"
+YOLO_MODEL_PATH = "models/yolo26n_rail_final.onnx"
 TEPNET_MODEL_PATH = "models/twinkling-rocket-21"
 
 CONF_THRESHOLD = 0.15
