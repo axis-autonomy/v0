@@ -18,7 +18,7 @@ jobs:
 
       - name: Download and install Hailo DFC
         run: |
-          curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          curl -L -H "Authorization: token ${{ secrets.PAT_TOKEN }}" \
                -o hailo_dfc.whl \
                "${{ secrets.HAILO_DFC_URL }}"
           pip install hailo_dfc.whl
