@@ -21,7 +21,7 @@ jobs:
           curl -L -H "Authorization: token ${{ secrets.PAT_TOKEN }}" \
                -o hailo_dfc.whl \
                "${{ secrets.HAILO_DFC_URL }}"
-          pip install hailo_dfc.whl
+          pip install ./hailo_dfc.whl
 
       - name: Parse ONNX
         run: |
