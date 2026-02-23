@@ -1,0 +1,46 @@
+name: Compile YOLO ONNX to HEF
+
+on:
+  workflow_dispatch:
+
+jobs:
+  compile:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Download and install Hailo DFC
+        run: |
+          pip install "${{ secrets.HAILO_DFC_URL }}"
+
+      - name: Parse ONNX
+        run: |
+          mkdir -p compiled
+          hailo parse --hw-arch hailo8l \
+                      --model models/yolo26n_rail_final.onnx \
+                      --output-dir ./compiled/
+
+      - name: Optimize
+        run: |
+          hailo optimize --hw-arch hailo8l \
+                         --model ./compiled/yolo26n_rail_final.har \
+                         --output-dir ./compiled/
+
+      - name: Compile to HEF
+        run: |
+          hailo compile --hw-arch hailo8l \
+                        --model ./compiled/yolo26n_rail_final_optimized.har \
+                        --output-dir ./compiled/
+
+      - name: Upload HEF
+        uses: actions/upload-artifact@v4
+        with:
+          name: yolo-hailo8l-hef
+          path: compiled/yolo26n_rail_final.hef

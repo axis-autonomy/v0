@@ -18,6 +18,7 @@ Thumbs.db
 .vscode/
 .idea/
 models/
+!models/yolo26n_rail_final.onnx
 *.pt
 *.onnx
 *.mlpackage
