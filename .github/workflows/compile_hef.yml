@@ -26,22 +26,25 @@ jobs:
       - name: Parse ONNX
         run: |
           mkdir -p compiled
-          hailo parse --hw-arch hailo8l \
-                      --model models/yolo26n_rail_final.onnx \
+          hailo parser keras \
+                      --hw-arch hailo8l \
+                      --onnx-path models/yolo26n_rail_final.onnx \
                       --output-dir ./compiled/
 
       - name: Optimize
         run: |
-          hailo optimize --hw-arch hailo8l \
-                         --model ./compiled/yolo26n_rail_final.har \
+          hailo optimize \
+                         --hw-arch hailo8l \
+                         ./compiled/yolo26n_rail_final.har \
                          --output-dir ./compiled/
 
       - name: Compile to HEF
         run: |
-          hailo compile --hw-arch hailo8l \
-                        --model ./compiled/yolo26n_rail_final_optimized.har \
+          hailo compiler \
+                        --hw-arch hailo8l \
+                        ./compiled/yolo26n_rail_final_optimized.har \
                         --output-dir ./compiled/
-
+                        
       - name: Upload HEF
         uses: actions/upload-artifact@v4
         with:
