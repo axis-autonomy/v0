@@ -20,14 +20,10 @@ class IconManager:
         
         self.class_to_icon = {
             'person': 'person.png',
-            'car': 'car.png',
-            'truck': 'truck.png',
-            'bus': 'truck.png',
-            'cow': 'cow.png',
-            'horse': 'cow.png',
-            'dog': 'deer.png',
-            'deer': 'deer.png',
-            'default': 'hazard.png'
+            'vehicle': 'car.png',
+            'railcar': 'railcar.png',
+            'crossing': 'crossing.png',
+            'default': 'check.png'
         }
         
         unique_icons = set(self.class_to_icon.values())
