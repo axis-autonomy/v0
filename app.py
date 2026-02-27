@@ -66,7 +66,7 @@ def inference_loop():
         last_t = now
         if dt > 0:
             fps_est = 0.9 * fps_est + 0.1 * (1.0 / dt) if fps_est else (1.0 / dt)
-            # print(f"FPS: {fps_est:.1f} | frame: {dt*1000:.1f}ms")
+            print(f"FPS: {fps_est:.1f} | frame: {dt*1000:.1f}ms")
 
         ok, buf = cv2.imencode(".jpg", annotated, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
         if not ok:
